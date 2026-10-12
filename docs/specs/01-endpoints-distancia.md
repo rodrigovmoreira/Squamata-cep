@@ -10,10 +10,10 @@
 
 O `Squamata-cep` atua como o **motor de logística e validação geográfica** do ecossistema Calango Inc.
 
-Esta tarefa consiste em construir dois endpoints principais:
+O serviço foi desenhado para ser **multiuso**, atendendo a dois cenários de entrada:
 
-1. **Validação de CEP** (ViaCEP);
-2. **Cálculo de distância entre dois CEPs** (ViaCEP + Mapbox Geocoding + Haversine).
+- **1 CEP enviado** → apenas **valida** o CEP e retorna o endereço;
+- **2 CEPs enviados** → **valida ambos**, calcula a distância **em linha reta** (Haversine) e, opcionalmente, a distância **de carro/moto** (Mapbox Matrix API).
 
 O serviço deve permanecer **sem estado** (`stateless`): nenhuma informação pode ser armazenada em memória local entre requisições.
 
@@ -40,17 +40,24 @@ O serviço deve permanecer **sem estado** (`stateless`): nenhuma informação po
 
 | Propriedade | Descrição |
 | --- | --- |
-| **Objetivo** | Calcular a distância em KM entre dois CEPs (Restaurante ↔ Cliente ou Restaurante ↔ Entregador). |
-| **Fonte** | ViaCEP (endereço) + Mapbox Geocoding (coordenadas) + Haversine (cálculo). |
+| **Objetivo** | Calcular a distância em KM entre dois CEPs (Restaurante ↔ Cliente ou Restaurante ↔ Entregador), em linha reta e/ou por ruas. |
+| **Fonte** | ViaCEP (endereço) + Mapbox Geocoding (coordenadas) + Haversine (linha reta) + Matrix API (carro/moto, opcional). |
 
 **Payload Esperado (Body):**
 
 ```json
 {
   "cepOrigem": "06000000",
-  "cepDestino": "06100000"
+  "cepDestino": "06100000",
+  "calcularRota": true
 }
 ```
+
+| Campo | Obrigatório? | Descrição |
+| --- | --- | --- |
+| `cepOrigem` | Sim | CEP de origem (ex.: restaurante). |
+| `cepDestino` | Sim | CEP de destino (ex.: cliente/entregador). |
+| `calcularRota` | Não (default `false`) | Se `true`, calcula também a distância de carro/moto via Matrix API. |
 
 **Fluxo Lógico (Fail Fast):**
 
@@ -58,7 +65,26 @@ O serviço deve permanecer **sem estado** (`stateless`): nenhuma informação po
 2. Consultar o ViaCEP para obter o Estado, Cidade e Logradouro de ambos.
 3. Consultar a API de Geocoding do Mapbox para converter os dois endereços em coordenadas (Latitude e Longitude).
 4. Utilizar a fórmula de Haversine (implementada nativamente no Node.js, sem dependências externas) para calcular a distância em linha reta (em KM) entre as duas coordenadas.
-5. Retornar o resultado unificado.
+5. Se `calcularRota` for `true`, consultar a Mapbox Matrix API para obter a distância de carro/moto (em KM).
+6. Retornar o resultado unificado.
+
+### 2.3. Flexibilidade do Cálculo de Rota (Linha Reta vs. Carro/Moto)
+
+Nem toda chamada com dois CEPs precisa calcular a distância de carro/moto — isso consome cota da Matrix API e torna a resposta mais lenta. Existem duas abordagens possíveis:
+
+**Abordagem 1 — Endpoint único com parâmetro de controle (recomendada):**
+
+Um único `POST /api/distancia` recebe a flag opcional `calcularRota` para decidir se calcula a rota por ruas (ver payload na seção 2.2).
+
+- `calcularRota: false` (ou ausente) → retorna **apenas** a distância em linha reta (Haversine).
+- `calcularRota: true` → retorna linha reta **e** distância de carro/moto (Matrix API).
+
+**Abordagem 2 — Dois endpoints distintos:**
+
+- `POST /api/distancia` → apenas distância em linha reta (Haversine).
+- `POST /api/rota` (ou `POST /api/distancia/rota`) → distância de carro/moto (Matrix API).
+
+> **Decisão:** adotar a **Abordagem 1** (endpoint único com a flag `calcularRota`), por manter uma única interface e evitar duplicação de validação. A Abordagem 2 fica documentada como alternativa.
 
 ---
 
@@ -119,7 +145,7 @@ Utiliza a **Mapbox Matrix API** (também inclusa no pacote gratuito) para saber 
 - **Parâmetros:** `coords` no formato `lng1,lat1;lng2,lat2` e `access_token`.
 - **Retorno relevante:** `durations` (segundos) e `distances` (metros).
 
-> **Escopo desta spec:** implementamos apenas a **Opção A (Haversine)**. A Opção B fica registrada como evolução futura.
+> **Escopo desta spec:** com 2 CEPs, a **Opção A (Haversine)** é sempre calculada. A **Opção B (Matrix API)** é calculada **apenas quando solicitada** via flag `calcularRota = true`.
 
 ---
 
@@ -167,7 +193,9 @@ server.js                     # Apenas importa as rotas
 
 ## 7. Critérios de Aceite (Checklist)
 
-- [ ] Rota `GET /api/cep/:cep` retorna os dados do endereço corretamente.
-- [ ] Rota `POST /api/distancia` retorna a distância em KM entre os dois pontos.
+- [ ] `GET /api/cep/:cep` com 1 CEP retorna os dados do endereço corretamente.
+- [ ] `POST /api/distancia` com 2 CEPs valida ambos e retorna a distância em linha reta (KM).
+- [ ] `POST /api/distancia` com `calcularRota: true` retorna também a distância de carro/moto (KM).
+- [ ] `POST /api/distancia` com `calcularRota` ausente/false **não** chama a Matrix API.
 - [ ] O código utiliza `import`/`export` (ESM) em todos os arquivos.
 - [ ] Tratamento de erros *gracefully*: se o ViaCEP ou Mapbox cair, a API não "crasha" — retorna JSON com HTTP `502`/`500` contendo o log do erro rastreável (serviço de origem + operação).
