@@ -1,0 +1,63 @@
+Tarefa 1 – Criação de um servidor Node.js. 
+Passo 1. Criar o projeto inicial. Crie uma pasta com o nome Squamata-cep na raiz do sistema (C:/) ou onde achar melhor. Abra um terminal do CMD dentro dessa pasta e use o comando npm init -y (a flag -y aceita todas as perguntas padrões como sim e acelera a criação). Essa ação vai criar o arquivo package.json dentro da pasta.
+Passo 2. O npm init cria o projeto em commonjs e queremos mudar para o módulo ecmascript module (ESM) que é o padrão de desenvolvimento dos projetos do Calango para funcionar bem em navegadores. Então mude o arquivo package.json que é gerado para o que segue abaixo:
+{
+  "name": "squamata-cep",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
+
+Além disso, o npm init cria o nome do arquivo principal como index.js, sugiro alterar para server.js para ser mais fácil de entender o objetivo do arquivo que é o nosso servidor principal.
+
+Passo 3. Crie os arquivos iniciais para subir o servidor
+server.js 
+.env
+
+No terminal execute os comandos para instalar a bibliote do Express e Dotenv
+npm install express dotenv	
+npm install -D nodemon
+Esse comando acima instala as duas bibliotecas, o Express é responsável pelo servidor de backend e o Dotenv é a biblioteca que vai ler o arquivo .env com as chaves do seu projeto. Você verá que a pasta node_modules e o arquivo package-lock.json serão criados. O nodemon é uma biblioteca que permite o recarregamento automático do servidor ao fazer alterações no código.
+Importante: O .env é um arquivo que não deve subir para o seu repositório do github pois ela guarda senhas e chaves de acesso para sua API e banco de dados. Para que o arquivo não vá para o versionamento do github é necessário criar um arquivo chamado .gitignore e adicionar o nome do arquivo dentro.
+
+Antes do próximo passo, aproveite e já instale duas bibliotecas necessárias para requisições HTTP e comunicação segura entre o frontend de outros sistemas e o seu backend.
+
+npm install axios cors
+
+Axios: É um "cliente HTTP". O microsserviço dele não tem os dados de CEP gravados, então ele precisa "viajar" até o site do ViaCEP, buscar a informação e trazer de volta. O Axios faz essa viagem de forma muito simples e lida com o formato JSON automaticamente. 
+cors: Isso é fundamental para o Calango Food! Os navegadores têm uma trava de segurança que impede um site (o frontend do restaurante) de acessar uma API que está rodando em um endereço diferente. O cors destrava isso, permitindo que a aplicação web converse com o seu microsserviço sem dar erro no console do navegador.
+
+Passo 4. Iniciar o código em Javascript para subir o servidor. O código que está abaixo é uma versão simplificada, porém criada para ter a responsabilidade de manter o sistema ativo. Copie o código abaixo:
+
+import express from 'express';
+import cors from 'cors';
+import 'dotenv/config'; // Carrega as variáveis do arquivo .env automaticamente
+
+const app = express();
+
+// Middlewares essenciais
+app.use(cors()); // Permite que o frontend faça requisições para esta API
+app.use(express.json()); // Prepara o servidor para receber e enviar dados no formato JSON
+
+// Rota de teste simples (Health Check)
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', mensagem: 'Microsserviço Squamata-CEP operante!' });
+});
+
+// Espaço reservado para as rotas modulares que criaremos depois
+// app.use('/api', rotasDeCep); 
+
+// Configuração da porta
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
