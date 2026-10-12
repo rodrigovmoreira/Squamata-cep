@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config'; // Carrega as variáveis do arquivo .env automaticamente
+import cepRoutes from './src/routes/cepRoutes.js';
 
 const app = express();
 
@@ -13,8 +14,8 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', mensagem: 'Microsserviço Squamata-CEP operante!' });
 });
 
-// Espaço reservado para as rotas modulares que criaremos depois
-// app.use('/api', rotasDeCep);
+// Rotas do Squamata-cep (validação de CEP e cálculo de distância)
+app.use('/api', cepRoutes);
 
 // Configuração da porta
 const PORT = process.env.PORT || 3000;
